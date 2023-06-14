@@ -140,7 +140,7 @@ def validate(model: Model, loader: DataLoaderIAM, line_mode: bool) -> Tuple[floa
     return char_error_rate, word_accuracy
 
 
-def infer(model: Model, fn_img: Path) -> None:
+def infer(model: Model, fn_img: Path) -> List[str]:
     """Recognizes text in image provided by file path."""
     img = cv2.imread(fn_img, cv2.IMREAD_GRAYSCALE)
     assert img is not None
@@ -152,6 +152,7 @@ def infer(model: Model, fn_img: Path) -> None:
     recognized, probability = model.infer_batch(batch, True)
     print(f'Recognized: "{recognized[0]}"')
     print(f'Probability: {probability[0]}')
+    return recognized[0]
 
 
 def parse_args() -> argparse.Namespace:
@@ -210,6 +211,7 @@ def main(path_to_images = "", is_inference = False):
 
     # infer text on test image
     elif args.mode == 'infer':
+        list_recognized = []
         model = Model(char_list_from_file(), decoder_type, must_restore=True, dump=args.dump)
         files = natsorted(os.listdir(path_to_images))
         for filename in files:
@@ -218,7 +220,9 @@ def main(path_to_images = "", is_inference = False):
             # Check if the current item is a file with .png extension
             if os.path.isfile(file_path) and os.path.splitext(filename)[1] == ".png":
                 print("Processing file:", filename)
-                infer(model, file_path)
+                recognized = infer(model, file_path)
+                list_recognized.append(recognized)
+        return list_recognized
 
 
 if __name__ == '__main__':
