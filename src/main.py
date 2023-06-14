@@ -1,21 +1,27 @@
 import argparse
 import json
+import os
 from typing import Tuple, List
 
 import cv2
 import editdistance
 from path import Path
 
-from dataloader_iam import DataLoaderIAM, Batch
-from model import Model, DecoderType
-from preprocessor import Preprocessor
+from SimpleHTR.src.dataloader_iam import DataLoaderIAM, Batch
+from SimpleHTR.src.model import Model, DecoderType
+from SimpleHTR.src.preprocessor import Preprocessor
+
+from natsort import natsorted
+
+# Get the script file's directory
+script_dir = Path(__file__).parent
 
 
 class FilePaths:
     """Filenames and paths to data."""
-    fn_char_list = '../model/charList.txt'
-    fn_summary = '../model/summary.json'
-    fn_corpus = '../data/corpus.txt'
+    fn_char_list = script_dir.parent / 'model' / 'charList.txt'
+    fn_summary = script_dir.parent / 'model' / 'summary.json'
+    fn_corpus = script_dir.parent / 'data' / 'corpus.txt'
 
 
 def get_img_height() -> int:
@@ -33,7 +39,8 @@ def get_img_size(line_mode: bool = False) -> Tuple[int, int]:
 def write_summary(average_train_loss: List[float], char_error_rates: List[float], word_accuracies: List[float]) -> None:
     """Writes training summary file for NN."""
     with open(FilePaths.fn_summary, 'w') as f:
-        json.dump({'averageTrainLoss': average_train_loss, 'charErrorRates': char_error_rates, 'wordAccuracies': word_accuracies}, f)
+        json.dump({'averageTrainLoss': average_train_loss, 'charErrorRates': char_error_rates,
+                   'wordAccuracies': word_accuracies}, f)
 
 
 def char_list_from_file() -> List[str]:
@@ -164,15 +171,17 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main():
+def main(path_to_images = "", is_inference = False):
     """Main function."""
-
     # parse arguments and set CTC decoder
     args = parse_args()
     decoder_mapping = {'bestpath': DecoderType.BestPath,
                        'beamsearch': DecoderType.BeamSearch,
                        'wordbeamsearch': DecoderType.WordBeamSearch}
     decoder_type = decoder_mapping[args.decoder]
+
+    if is_inference:
+        args.mode = 'infer'
 
     # train the model
     if args.mode == 'train':
@@ -202,7 +211,14 @@ def main():
     # infer text on test image
     elif args.mode == 'infer':
         model = Model(char_list_from_file(), decoder_type, must_restore=True, dump=args.dump)
-        infer(model, args.img_file)
+        files = natsorted(os.listdir(path_to_images))
+        for filename in files:
+            file_path = os.path.join(path_to_images, filename)
+
+            # Check if the current item is a file with .png extension
+            if os.path.isfile(file_path) and os.path.splitext(filename)[1] == ".png":
+                print("Processing file:", filename)
+                infer(model, file_path)
 
 
 if __name__ == '__main__':
